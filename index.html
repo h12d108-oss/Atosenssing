@@ -1,0 +1,297 @@
+%%writefile index.html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AtoSensing | 아토피 가려움 전조 예측 및 미세 압력 케어</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: #f1f5f9; display: flex; justify-content: center; padding: 16px; color: #1e293b; }
+    .app-shell { width: 100%; max-width: 430px; background: #ffffff; border-radius: 28px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12); overflow: hidden; border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #0f172a, #1e3a8a); color: #fff; padding: 20px 22px; }
+    .header-top { display: flex; justify-content: space-between; align-items: center; }
+    .badge { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 600; }
+    .header h1 { font-size: 20px; font-weight: 700; margin-top: 6px; letter-spacing: -0.3px; }
+    .header p { font-size: 12px; color: #cbd5e1; margin-top: 4px; }
+    .content { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+    .status-card { border-radius: 18px; padding: 16px; transition: all 0.3s ease; border: 2px solid #e2e8f0; background: #f8fafc; }
+    .status-card.active { background: #fef2f2; border-color: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12); }
+    .status-row { display: flex; justify-content: space-between; align-items: center; }
+    .status-label { font-size: 12px; font-weight: 600; color: #64748b; }
+    .status-card.active .status-label { color: #b91c1c; }
+    .pill { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+    .status-card.active .pill { background: #ef4444; color: #fff; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
+    .prob-value { font-size: 34px; font-weight: 800; margin: 6px 0 4px; color: #0f172a; }
+    .status-card.active .prob-value { color: #dc2626; }
+    .bar-bg { width: 100%; height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; width: 0%; background: #2563eb; transition: width 0.25s ease, background 0.25s ease; }
+    .status-card.active .bar-fill { background: #ef4444; }
+    .threshold-mark { position: absolute; left: 80%; top: 0; bottom: 0; width: 2px; background: #0f172a; }
+    .status-desc { font-size: 12px; color: #475569; margin-top: 8px; line-height: 1.4; }
+    .status-card.active .status-desc { color: #991b1b; font-weight: 600; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .metric-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 8px; text-align: center; }
+    .metric-title { font-size: 11px; color: #64748b; font-weight: 600; }
+    .metric-val { font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+    .metric-unit { font-size: 10px; color: #94a3b8; }
+
+    .chart-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px; }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .chart-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+    .time-badge { font-size: 11px; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 3px 8px; border-radius: 8px; }
+
+    .controls { display: flex; gap: 8px; }
+    button { flex: 1; padding: 11px; border: none; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .mode-switch { display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 12px; }
+    .mode-btn { flex: 1; padding: 7px; font-size: 12px; border-radius: 9px; background: transparent; color: #64748b; font-weight: 600; }
+    .mode-btn.selected { background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .slider-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+    .slider-top { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    input[type="range"] { width: 100%; accent-color: #2563eb; }
+
+    .log-box { background: #0f172a; color: #e2e8f0; border-radius: 14px; padding: 12px; font-size: 11px; max-height: 110px; overflow-y: auto; }
+    .log-title { color: #94a3b8; font-weight: 700; margin-bottom: 6px; }
+    .log-item { margin-bottom: 4px; line-height: 1.35; }
+    .log-on { color: #fca5a5; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="header">
+      <div class="header-top">
+        <span class="badge">BLE 5.3 무선 겔 패치 연동</span>
+        <span class="badge">1Hz 실시간 AI 추론</span>
+      </div>
+      <h1>AtoSensing 케어 모니터</h1>
+      <p>페르소나(김부각, 18세) 맞춤형 가려움 전조 감지 및 관문 조절 제어</p>
+    </div>
+
+    <div class="content">
+      <div class="mode-switch">
+        <button class="mode-btn selected" id="modeSurge" onclick="setScenario('surge')">시나리오 A: 가려움 전조 급등 (t=600~659s)</button>
+        <button class="mode-btn" id="modeCalm" onclick="setScenario('calm')">시나리오 B: 평온 안정 상태 (t=5585~5644s)</button>
+      </div>
+
+      <div class="status-card" id="statusCard">
+        <div class="status-row">
+          <span class="status-label">로지스틱 회귀 긁기 전조 확률</span>
+          <span class="pill" id="actuatorPill">미세 압력 대기 (OFF)</span>
+        </div>
+        <div class="prob-value" id="probText">1.15%</div>
+        <div class="bar-bg">
+          <div class="bar-fill" id="probBar"></div>
+          <div class="threshold-mark" id="thresholdMark" title="작동 임계치"></div>
+        </div>
+        <div class="status-desc" id="statusDesc">
+          교감신경 신호가 안정 범위 내에 있습니다. 미세 압력 자극을 출력하지 않습니다.
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="metric-box">
+          <div class="metric-title">① 변화율 (ΔEDA)</div>
+          <div class="metric-val" id="valDelta">-0.0019</div>
+          <div class="metric-unit">μS/s</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-title">② 5초 이동평균</div>
+          <div class="metric-val" id="valMA">0.4221</div>
+          <div class="metric-unit">μS (MA5)</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-title">③ 정규화 표준편차</div>
+          <div class="metric-val" id="valSD">0.0170</div>
+          <div class="metric-unit">Norm_SD (0~1)</div>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <div class="chart-header">
+          <span class="chart-title">실시간 피부전도도(EDA) 및 전조 확률 추이</span>
+          <span class="time-badge" id="timeBadge">경과: 1초 / 60초</span>
+        </div>
+        <canvas id="edaChart" height="175"></canvas>
+      </div>
+
+      <div class="controls">
+        <button class="btn-primary" id="playBtn" onclick="togglePlay()">▶ 실시간 시뮬레이션 시작</button>
+        <button class="btn-secondary" onclick="resetSim()">↺ 초기화</button>
+      </div>
+
+      <div class="slider-box">
+        <div class="slider-top">
+          <span>개인 맞춤형 작동 임계치 설정 (AI 편향 보정)</span>
+          <span id="threshLabel" style="color:#2563eb;">80%</span>
+        </div>
+        <input type="range" id="threshSlider" min="60" max="95" value="80" oninput="updateThreshold(this.value)" />
+      </div>
+
+      <div class="log-box">
+        <div class="log-title">📟 겔 패치 액추에이터(A-beta 촉각 자극) 작동 로그</div>
+        <div id="logList">
+          <div class="log-item">[시스템 준비] WESAD 피험자 S2 실측 데이터 로드 완료 (1Hz 샘플링)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const surgeEDA = [0.4263,0.4234,0.4218,0.4193,0.4189,0.4161,0.4138,0.4119,0.4103,0.4090,0.4064,0.4052,0.4039,0.4292,0.4869,0.5852,0.7056,0.7297,0.6976,0.6826,0.6775,0.6803,0.6662,0.6502,0.6380,0.6268,0.6179,0.6079,0.6387,0.8088,0.9014,0.9962,1.0491,1.0340,0.9930,1.0123,1.1507,1.3464,1.3031,1.2025,1.1590,1.1394,1.1250,1.1084,1.0936,1.0824,1.0805,1.1587,1.3521,1.3345,1.2698,1.2346,1.2134,1.2041,1.2785,1.3220,1.2673,1.2371,1.2272,1.2166];
+    const calmEDA  = [0.1354,0.1582,0.1451,0.1665,0.1345,0.1165,0.1604,0.1563,0.1742,0.1893,0.1989,0.2088,0.2011,0.2152,0.2152,0.2299,0.2120,0.2040,0.2034,0.2171,0.2261,0.2341,0.2293,0.2152,0.2671,0.2697,0.2639,0.2751,0.2754,0.2620,0.2575,0.2504,0.2460,0.2405,0.2386,0.2370,0.2360,0.2476,0.2732,0.9783,0.3552,0.2892,0.2982,0.3145,0.3097,0.3107,0.3113,0.3177,0.3222,0.3241,0.3228,0.3206,0.3190,0.3190,0.3190,0.3177,0.3120,0.3129,0.3126,0.3107];
+
+    const W1 = 0.307521, W2 = 11.704521, W3 = 0.924537, B = -9.409861;
+    const SD_MAX = 0.37762;
+
+    let scenario = 'surge';
+    let idx = 0;
+    let timer = null;
+    let threshold = 80;
+    let wasActive = false;
+
+    const ctx = document.getElementById('edaChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: '원시 EDA (μS)', data: [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', yAxisID: 'y', tension: 0.25, borderWidth: 2, pointRadius: 2 },
+          { label: '전조 확률 (%)', data: [], borderColor: '#ef4444', yAxisID: 'y1', tension: 0.25, borderWidth: 2, borderDash: [4, 3], pointRadius: 0 }
+        ]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: { type: 'linear', position: 'left', min: 0, max: 1.5, title: { display: true, text: 'EDA (μS)', font: { size: 10 } } },
+          y1: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: '확률 (%)', font: { size: 10 } } }
+        },
+        plugins: { legend: { labels: { font: { size: 11 } } } }
+      }
+    });
+
+    function computeStep(series, i) {
+      const eda = series[i];
+      const delta = i === 0 ? -0.0019 : eda - series[i - 1];
+      const start = Math.max(0, i - 4);
+      const win = series.slice(start, i + 1);
+      const ma5 = win.reduce((a, b) => a + b, 0) / win.length;
+      let sd = 0;
+      if (win.length > 1) {
+        const variance = win.reduce((acc, v) => acc + Math.pow(v - ma5, 2), 0) / (win.length - 1);
+        sd = Math.sqrt(variance);
+      }
+      const normSd = Math.min(1, Math.max(0, sd / SD_MAX));
+      const z = W1 * delta + W2 * ma5 + W3 * normSd + B;
+      const prob = (1 / (1 + Math.exp(-z))) * 100;
+      return { eda, delta, ma5, normSd, prob };
+    }
+
+    function renderStep(i) {
+      const series = scenario === 'surge' ? surgeEDA : calmEDA;
+      const res = computeStep(series, i);
+
+      document.getElementById('valDelta').textContent = (res.delta >= 0 ? '+' : '') + res.delta.toFixed(4);
+      document.getElementById('valMA').textContent = res.ma5.toFixed(4);
+      document.getElementById('valSD').textContent = res.normSd.toFixed(4);
+      document.getElementById('probText').textContent = res.prob.toFixed(2) + '%';
+      document.getElementById('probBar').style.width = res.prob.toFixed(1) + '%';
+      document.getElementById('timeBadge').textContent = `경과: ${i + 1}초 / 60초`;
+
+      const isActive = res.prob >= threshold;
+      const card = document.getElementById('statusCard');
+      const pill = document.getElementById('actuatorPill');
+      const desc = document.getElementById('statusDesc');
+
+      if (isActive) {
+        card.classList.add('active');
+        pill.textContent = '미세 압력 작동 중 (ON)';
+        desc.textContent = '임계치 초과! 표피 메르켈 세포(A-beta) 미세 압력 자극을 출력하여 C-가려움 신호를 차단합니다.';
+        if (!wasActive) {
+          addLog(`[${i + 1}초] 전조 확률 ${res.prob.toFixed(2)}% (≥${threshold}%) → 미세 압력 액추에이터 ON`, true);
+        }
+      } else {
+        card.classList.remove('active');
+        pill.textContent = '미세 압력 대기 (OFF)';
+        desc.textContent = '교감신경 신호가 안정 범위 내에 있습니다. 미세 압력 자극을 출력하지 않습니다.';
+        if (wasActive) {
+          addLog(`[${i + 1}초] 전조 확률 ${res.prob.toFixed(2)}% (<${threshold}%) → 자극 종료 (OFF)`, false);
+        }
+      }
+      wasActive = isActive;
+
+      chart.data.labels.push(`${i + 1}s`);
+      chart.data.datasets[0].data.push(res.eda);
+      chart.data.datasets[1].data.push(Number(res.prob.toFixed(2)));
+      chart.update();
+    }
+
+    function addLog(msg, isAlert) {
+      const list = document.getElementById('logList');
+      const div = document.createElement('div');
+      div.className = 'log-item' + (isAlert ? ' log-on' : '');
+      div.textContent = msg;
+      list.prepend(div);
+    }
+
+    function togglePlay() {
+      const btn = document.getElementById('playBtn');
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+        btn.textContent = '▶ 시뮬레이션 계속';
+      } else {
+        if (idx >= 59) resetSim();
+        btn.textContent = '⏸ 일시정지';
+        timer = setInterval(() => {
+          idx++;
+          if (idx >= 60) {
+            clearInterval(timer);
+            timer = null;
+            btn.textContent = '▶ 다시 재생';
+            return;
+          }
+          renderStep(idx);
+        }, 350);
+      }
+    }
+
+    function resetSim() {
+      if (timer) { clearInterval(timer); timer = null; }
+      idx = 0;
+      wasActive = false;
+      document.getElementById('playBtn').textContent = '▶ 실시간 시뮬레이션 시작';
+      chart.data.labels = [];
+      chart.data.datasets[0].data = [];
+      chart.data.datasets[1].data = [];
+      document.getElementById('logList').innerHTML = '<div class="log-item">[초기화] 시뮬레이션 데이터가 1초 시점으로 리셋되었습니다.</div>';
+      renderStep(0);
+    }
+
+    function setScenario(mode) {
+      scenario = mode;
+      document.getElementById('modeSurge').classList.toggle('selected', mode === 'surge');
+      document.getElementById('modeCalm').classList.toggle('selected', mode === 'calm');
+      resetSim();
+    }
+
+    function updateThreshold(val) {
+      threshold = Number(val);
+      document.getElementById('threshLabel').textContent = threshold + '%';
+      document.getElementById('thresholdMark').style.left = threshold + '%';
+    }
+
+    renderStep(0);
+  </script>
+</body>
+</html>
